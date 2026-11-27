@@ -96,6 +96,33 @@
     .col-btn { width: 38px; height: 38px; }
     #hint { display: none; }
   }
+  /* Celular en horizontal (poca altura): diseño compacto */
+  @media (max-height: 520px) {
+    #app {
+      padding: 6px; gap: 6px;
+      grid-template-columns: 84px 1fr 96px; grid-template-rows: auto 1fr;
+      grid-template-areas: "orn bar col" "orn tree col";
+    }
+    #bar { padding: 4px 6px; gap: 6px; }
+    #bar h1 { display: none; }
+    .btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+    #camTools { padding: 2px 6px; font-size: 12px; white-space: nowrap; }
+    #camTools input[type=range] { width: 90px; height: 22px; }
+    #orn { flex-direction: column; justify-content: flex-start; gap: 6px; padding: 6px; }
+    .orn-btn { padding: 4px; }
+    .orn-btn span { display: none; }
+    .orn-btn canvas { width: 44px; height: 44px; }
+    #col { gap: 6px; padding: 6px; }
+    .col-btn { width: 34px; height: 34px; border-width: 3px; }
+    #hint { display: none; }
+    #status {
+      position: fixed; left: 50%; bottom: 8px; transform: translateX(-50%);
+      flex: none; min-width: 0; max-width: 62vw; background: rgba(8,14,36,.88); color: #fff;
+      padding: 6px 12px; border-radius: 10px; font-size: 12px; z-index: 6;
+      pointer-events: none; transition: opacity .6s;
+    }
+    #status.fade { opacity: 0; }
+  }
 </style>
 </head>
 <body>
@@ -343,7 +370,14 @@ function getPointer(id) {
 }
 
 const statusEl = document.getElementById("status");
-const setStatus = t => { statusEl.textContent = t; };
+let statusTimer = null;
+const setStatus = t => {
+  statusEl.textContent = t;
+  statusEl.classList.remove("fade");           // "fade" solo oculta el aviso en el modo compacto
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => statusEl.classList.add("fade"), 9000);
+};
+setStatus(statusEl.textContent);
 const sliderEl = document.getElementById("opacity");
 const videoEl = document.getElementById("video");
 
@@ -426,7 +460,7 @@ function runAction(a) {
   } else if (a === "save") saveImage();
   else if (a === "fullscreen") toggleFullscreen();
   else if (a === "tv") {
-    setStatus("Para verlo en la TV, usa Chrome: menú ⋮ → “Guardar, compartir y enviar” → “Enviar…”, elige tu Chromecast y en “Fuentes” selecciona “Enviar pestaña”. Luego activa la pantalla completa.");
+    setStatus("Para verlo en la TV: en computadora, Chrome → menú ⋮ → “Guardar, compartir y enviar” → “Enviar…” → “Enviar pestaña”. En el celular Android, usa “Transmitir pantalla” (Smart View / Cast) del panel rápido, o la app Google Home → tu TV → “Transmitir mi pantalla”.");
   }
 }
 
