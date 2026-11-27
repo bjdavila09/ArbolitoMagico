@@ -75,6 +75,9 @@
     position: absolute; left: 10px; bottom: 10px; max-width: 60%; font-size: 12px; color: #dfe7ff;
     background: rgba(8,14,36,.65); padding: 6px 10px; border-radius: 10px; pointer-events: none;
   }
+  #hands {
+    position: fixed; inset: 0; width: 100vw; height: 100dvh; z-index: 5; pointer-events: none;
+  }
   .cursor {
     position: fixed; left: 0; top: 0; width: 34px; height: 34px; margin: -17px 0 0 -17px;
     border: 3px solid #fff; border-radius: 50%; pointer-events: none; display: none; z-index: 10;
@@ -120,6 +123,7 @@
 
   <div id="col" class="panel"></div>
 </div>
+<canvas id="hands"></canvas>
 
 <script type="module">
 import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
@@ -520,6 +524,7 @@ function videoToScreen(nx, ny) {
 
 function updateHand(p, lm, now) {
   p.isHand = true;
+  p.lm = lm;
   if (!p.cursor) {
     p.cursor = document.createElement("div");
     p.cursor.className = "cursor" + (p.id.endsWith("Left") ? "" : " b");
@@ -552,6 +557,7 @@ function handLost(p, now) {
   if (p.seen && now - p.seen > 400) {
     if (p.pinched) { p.pinched = false; pointerUp(p); }
     p.cursor.style.display = "none";
+    p.lm = null;
     p.seen = 0;
   }
 }
@@ -584,6 +590,54 @@ function updateHover() {
   hovered = now;
 }
 
+/* ---------- Esqueleto de las manos (puntos y "palitos") ---------- */
+const handsCanvas = document.getElementById("hands");
+const hctx = handsCanvas.getContext("2d");
+function resizeHands() {
+  const dpr = window.devicePixelRatio || 1;
+  handsCanvas.width = Math.round(window.innerWidth * dpr);
+  handsCanvas.height = Math.round(window.innerHeight * dpr);
+  hctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener("resize", resizeHands);
+resizeHands();
+
+const BONES = [
+  [0, 1], [1, 2], [2, 3], [3, 4],            // pulgar
+  [0, 5], [5, 6], [6, 7], [7, 8],            // índice
+  [5, 9], [9, 10], [10, 11], [11, 12],       // medio
+  [9, 13], [13, 14], [14, 15], [15, 16],     // anular
+  [13, 17], [17, 18], [18, 19], [19, 20],    // meñique
+  [0, 17],                                   // palma
+];
+const TIPS = new Set([4, 8, 12, 16, 20]);
+
+function drawHands() {
+  hctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+  for (const p of pointers.values()) {
+    if (!p.isHand || !p.lm || !p.seen) continue;
+    const pts = p.lm.map(l => videoToScreen(l.x, l.y));
+    const color = p.pinched ? "#ffd54f" : (p.id.endsWith("Left") ? "#ffffff" : "#4dd0e1");
+    hctx.lineCap = "round";
+    // contorno oscuro para que se vea sobre cualquier fondo
+    hctx.strokeStyle = "rgba(0,0,0,.55)"; hctx.lineWidth = 7;
+    hctx.beginPath();
+    for (const [a, b] of BONES) { hctx.moveTo(pts[a].x, pts[a].y); hctx.lineTo(pts[b].x, pts[b].y); }
+    hctx.stroke();
+    hctx.strokeStyle = color; hctx.lineWidth = 3.5;
+    hctx.beginPath();
+    for (const [a, b] of BONES) { hctx.moveTo(pts[a].x, pts[a].y); hctx.lineTo(pts[b].x, pts[b].y); }
+    hctx.stroke();
+    pts.forEach((pt, i) => {
+      const r = TIPS.has(i) ? 6 : 4;
+      hctx.fillStyle = "rgba(0,0,0,.55)";
+      hctx.beginPath(); hctx.arc(pt.x, pt.y, r + 2, 0, Math.PI * 2); hctx.fill();
+      hctx.fillStyle = color;
+      hctx.beginPath(); hctx.arc(pt.x, pt.y, r, 0, Math.PI * 2); hctx.fill();
+    });
+  }
+}
+
 function loop() {
   const now = performance.now();
   if (camOn && landmarker && videoEl.readyState >= 2 && videoEl.currentTime !== lastVideoTime) {
@@ -591,6 +645,7 @@ function loop() {
     handleResults(landmarker.detectForVideo(videoEl, now), now);
   }
   updateHover();
+  drawHands();
   draw();
   requestAnimationFrame(loop);
 }
