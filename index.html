@@ -3,23 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Decora el árbol con tus manos</title>
+<title>Arbolito Mágico</title>
 <style>
   :root {
-    --bg: #0b1530;
-    --panel: #14214a;
-    --panel-2: #1c2d63;
+    --panel: rgba(16, 27, 62, .78);
+    --panel-2: rgba(40, 60, 128, .85);
     --accent: #ffd54f;
     --text: #f3f6ff;
-    --muted: #9fb0e0;
+    --muted: #b8c6f0;
   }
   * { box-sizing: border-box; }
   html, body {
-    margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    margin: 0; height: 100%; color: var(--text);
+    background: linear-gradient(#07102a, #1a2b5c);
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none;
   }
+  /* Cámara a pantalla completa, detrás de todo */
+  #video {
+    position: fixed; inset: 0; width: 100vw; height: 100dvh; object-fit: cover;
+    transform: scaleX(-1); display: none; z-index: 0; pointer-events: none; opacity: .8;
+  }
   #app {
+    position: relative; z-index: 1;
     height: 100dvh; display: grid; gap: 10px; padding: 10px;
     grid-template-columns: 130px 1fr 130px;
     grid-template-rows: auto 1fr;
@@ -28,6 +34,7 @@
   #bar {
     grid-area: bar; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     background: var(--panel); border-radius: 14px; padding: 8px 12px;
+    backdrop-filter: blur(6px);
   }
   #bar h1 { font-size: 18px; margin: 0; white-space: nowrap; }
   #status { color: var(--muted); font-size: 13px; flex: 1; min-width: 160px; }
@@ -37,9 +44,15 @@
   }
   .btn.primary { background: #2e7d32; }
   .btn.hover, .btn:hover { border-color: var(--accent); }
+  #camTools {
+    display: none; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 12px;
+    border: 2px solid transparent; font-size: 13px; color: var(--muted);
+  }
+  #camTools.hover { border-color: var(--accent); }
+  #camTools input[type=range] { width: 130px; accent-color: var(--accent); height: 26px; }
   .panel {
     background: var(--panel); border-radius: 14px; padding: 8px;
-    display: flex; flex-direction: column; gap: 8px; overflow: auto;
+    display: flex; flex-direction: column; gap: 8px; overflow: auto; backdrop-filter: blur(6px);
   }
   #orn { grid-area: orn; }
   #col { grid-area: col; flex-direction: row; flex-wrap: wrap; justify-content: center; align-content: flex-start; }
@@ -49,32 +62,27 @@
     font-size: 12px; cursor: pointer;
   }
   .orn-btn canvas { width: 56px; height: 56px; pointer-events: none; }
-  .orn-btn.sel { border-color: var(--accent); background: #26397a; }
+  .orn-btn.sel { border-color: var(--accent); }
   .orn-btn.hover { border-color: #fff; }
   .col-btn {
     width: 48px; height: 48px; border-radius: 50%; border: 4px solid rgba(255,255,255,.25); cursor: pointer;
   }
   .col-btn.sel { border-color: #fff; box-shadow: 0 0 0 3px var(--accent); }
   .col-btn.hover { border-color: #fff; transform: scale(1.1); }
-  #treeWrap { grid-area: tree; position: relative; border-radius: 14px; overflow: hidden; background: #000; }
+  #treeWrap { grid-area: tree; position: relative; border-radius: 14px; overflow: hidden; }
   #tree { width: 100%; height: 100%; display: block; }
-  #cam {
-    position: absolute; right: 10px; bottom: 10px; width: 160px; border-radius: 10px;
-    overflow: hidden; border: 2px solid rgba(255,255,255,.3); display: none; background: #000; pointer-events: none;
-  }
-  #cam video { width: 100%; display: block; transform: scaleX(-1); opacity: .85; }
-  #cam canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
   #hint {
-    position: absolute; left: 10px; bottom: 10px; max-width: 55%; font-size: 12px; color: #dfe7ff;
+    position: absolute; left: 10px; bottom: 10px; max-width: 60%; font-size: 12px; color: #dfe7ff;
     background: rgba(8,14,36,.65); padding: 6px 10px; border-radius: 10px; pointer-events: none;
   }
-  #cursor {
+  .cursor {
     position: fixed; left: 0; top: 0; width: 34px; height: 34px; margin: -17px 0 0 -17px;
     border: 3px solid #fff; border-radius: 50%; pointer-events: none; display: none; z-index: 10;
     box-shadow: 0 0 0 2px rgba(0,0,0,.4), 0 0 12px rgba(255,255,255,.6);
-    transition: background .08s, transform .08s;
+    transition: background .08s;
   }
-  #cursor.pinch { background: rgba(255,213,79,.85); transform: scale(.7); border-color: var(--accent); }
+  .cursor.b { border-color: #4dd0e1; box-shadow: 0 0 0 2px rgba(0,0,0,.4), 0 0 12px rgba(77,208,225,.8); }
+  .cursor.pinch { background: rgba(255,213,79,.85); border-color: var(--accent); }
   @media (max-width: 760px) {
     #app {
       grid-template-columns: 1fr; grid-template-rows: auto auto 1fr auto;
@@ -84,15 +92,20 @@
     .orn-btn canvas { width: 40px; height: 40px; }
     .col-btn { width: 38px; height: 38px; }
     #hint { display: none; }
-    #cam { width: 110px; }
   }
 </style>
 </head>
 <body>
+<video id="video" playsinline muted></video>
+
 <div id="app">
   <div id="bar">
-    <h1>🎄 Decora el árbol</h1>
+    <h1>🎄 Arbolito Mágico</h1>
     <div id="status">Toca “Activar cámara” para usar las manos, o usa el ratón / el dedo.</div>
+    <div id="camTools" data-slider>
+      <span>Cámara</span>
+      <input type="range" id="opacity" min="0" max="100" value="80" data-slider aria-label="Opacidad de la cámara">
+    </div>
     <button class="btn primary" id="camBtn" data-action="camera">Activar cámara</button>
     <button class="btn" data-action="clear">Limpiar</button>
     <button class="btn" data-action="save">Guardar imagen</button>
@@ -102,13 +115,11 @@
 
   <div id="treeWrap">
     <canvas id="tree"></canvas>
-    <div id="hint">Pellizca (pulgar + índice) un adorno, llévalo al árbol y abre los dedos para soltarlo. Pellizca un color para pintarlo. Suelta un adorno fuera del árbol para quitarlo.</div>
-    <div id="cam"><video id="video" playsinline muted></video><canvas id="camOverlay"></canvas></div>
+    <div id="hint">Pellizca (pulgar + índice) un adorno, llévalo al árbol y abre los dedos para soltarlo. Pellizca un color para pintarlo. Puedes usar las dos manos a la vez. Suelta un adorno fuera del árbol para quitarlo.</div>
   </div>
 
   <div id="col" class="panel"></div>
 </div>
-<div id="cursor"></div>
 
 <script type="module">
 import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
@@ -126,8 +137,7 @@ const COLORS = ["#e53935", "#fb8c00", "#fdd835", "#43a047", "#1e88e5", "#8e24aa"
 let curType = "star";
 let curColor = COLORS[0];
 let orns = [];          // { type, color, x, y }  (x, y normalizados 0..1 sobre el lienzo)
-let selected = null;    // adorno colocado seleccionado
-let held = null;        // { item, isNew } mientras se arrastra
+let selected = null;    // adorno colocado seleccionado (compartido por las dos manos)
 
 /* ---------- Utilidades ---------- */
 function shade(hex, f) {
@@ -137,6 +147,7 @@ function shade(hex, f) {
   const b = Math.min(255, Math.round((n & 255) * f));
   return `rgb(${r},${g},${b})`;
 }
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 /* ---------- Dibujo de adornos ---------- */
 function drawOrnament(ctx, type, x, y, r, color) {
@@ -217,7 +228,7 @@ function refreshPanels() {
 }
 refreshPanels();
 
-/* ---------- Lienzo del árbol ---------- */
+/* ---------- Lienzo del árbol (transparente: la cámara se ve detrás) ---------- */
 const canvas = document.getElementById("tree");
 const ctx = canvas.getContext("2d");
 let W = 0, H = 0;
@@ -251,29 +262,31 @@ function insideTree(x, y) {
   return Math.abs(x - g.cx) <= half;
 }
 
-function drawScene() {
-  const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, "#07102a"); bg.addColorStop(1, "#1a2b5c");
-  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = "rgba(255,255,255,.8)";
-  for (const s of snow) { ctx.beginPath(); ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2); ctx.fill(); }
+let camAlpha = 0.8, camVisible = false;
 
-  // suelo nevado
-  ctx.fillStyle = "#e8f0ff";
-  ctx.beginPath(); ctx.ellipse(W / 2, H * 0.90, W * 0.6, H * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+function drawScene() {
+  ctx.clearRect(0, 0, W, H);
+  // Nieve y suelo se atenúan cuando la cámara se ve más (para no tapar la imagen real)
+  const bgAlpha = camVisible ? 1 - camAlpha : 1;
+  if (bgAlpha > 0.02) {
+    ctx.save(); ctx.globalAlpha = bgAlpha;
+    ctx.fillStyle = "rgba(255,255,255,.8)";
+    for (const s of snow) { ctx.beginPath(); ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = "#e8f0ff";
+    ctx.beginPath(); ctx.ellipse(W / 2, H * 0.90, W * 0.6, H * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
 
   const g = geom();
-  // tronco
   ctx.fillStyle = "#6d4c41";
   ctx.fillRect(g.cx - g.halfW * 0.12, g.baseY - 4, g.halfW * 0.24, H * 0.09);
 
-  // tres niveles
   const tiers = [[0, 0.46, 0.50], [0.26, 0.76, 0.78], [0.5, 1, 1]];
   const greens = ["#2e7d32", "#388e3c", "#43a047"];
   const span = g.baseY - g.apexY;
   tiers.forEach(([t0, t1, wf], i) => {
     const yTop = g.apexY + span * t0, yBot = g.apexY + span * t1;
-    const half = g.halfW * (i === 2 ? 1 : wf + 0.1) ;
+    const half = g.halfW * (i === 2 ? 1 : wf + 0.1);
     ctx.fillStyle = greens[i];
     ctx.strokeStyle = "#1b5e20"; ctx.lineWidth = 2;
     ctx.beginPath();
@@ -295,37 +308,65 @@ function draw() {
     }
     drawOrnament(ctx, o.type, px, py, r, o.color);
   }
-  if (held) {
-    const rect = canvas.getBoundingClientRect();
-    const px = pointer.x - rect.left, py = pointer.y - rect.top;
+  const rect = canvas.getBoundingClientRect();
+  for (const p of pointers.values()) {
+    if (!p.held) continue;
+    const px = p.x - rect.left, py = p.y - rect.top;
     ctx.save();
     ctx.globalAlpha = 0.95; ctx.shadowColor = "rgba(0,0,0,.6)"; ctx.shadowBlur = 14;
-    drawOrnament(ctx, held.item.type, px, py, r * 1.25, held.item.color);
+    drawOrnament(ctx, p.held.item.type, px, py, r * 1.25, p.held.item.color);
     ctx.restore();
     if (!insideTree(px, py)) {
-      ctx.fillStyle = "rgba(255,255,255,.85)"; ctx.font = "13px system-ui"; ctx.textAlign = "center";
-      ctx.fillText(held.isNew ? "Llévalo al árbol" : "Suelta aquí para quitarlo", px, py - r * 1.8);
+      ctx.fillStyle = "rgba(255,255,255,.9)"; ctx.font = "13px system-ui"; ctx.textAlign = "center";
+      ctx.shadowColor = "rgba(0,0,0,.8)"; ctx.shadowBlur = 4;
+      ctx.fillText(p.held.isNew ? "Llévalo al árbol" : "Suelta aquí para quitarlo", px, py - r * 1.8);
+      ctx.shadowBlur = 0;
     }
   }
 }
 
-/* ---------- Lógica de puntero (ratón, táctil y mano) ---------- */
-const pointer = { x: -100, y: -100 };
-const statusEl = document.getElementById("status");
-const setStatus = t => { statusEl.textContent = t; };
-
-function elAt(x, y) {
-  const el = document.elementFromPoint(x, y);
-  return el ? el.closest("[data-orn],[data-color],[data-action]") : null;
+/* ---------- Punteros: ratón, táctil y cada mano (todos independientes) ---------- */
+const pointers = new Map();
+function getPointer(id) {
+  let p = pointers.get(id);
+  if (!p) {
+    p = { id, x: -100, y: -100, held: null, slider: false, isHand: false, pinched: false, seen: 0, cur: { x: 0, y: 0 }, cursor: null };
+    pointers.set(id, p);
+  }
+  return p;
 }
 
-function pointerDown(x, y) {
-  pointer.x = x; pointer.y = y;
+const statusEl = document.getElementById("status");
+const setStatus = t => { statusEl.textContent = t; };
+const sliderEl = document.getElementById("opacity");
+const videoEl = document.getElementById("video");
+
+const SEL = "[data-orn],[data-color],[data-action],[data-slider]";
+function elAt(x, y) {
+  const el = document.elementFromPoint(x, y);
+  return el ? el.closest(SEL) : null;
+}
+
+function applyOpacity() {
+  camAlpha = sliderEl.value / 100;
+  videoEl.style.opacity = camAlpha;
+}
+function setSlider(x) {
+  const r = sliderEl.getBoundingClientRect();
+  sliderEl.value = Math.round(clamp((x - r.left) / r.width, 0, 1) * 100);
+  applyOpacity();
+}
+sliderEl.addEventListener("input", applyOpacity);
+
+function pointerDown(p, x, y) {
+  p.x = x; p.y = y;
   const btn = elAt(x, y);
   if (btn) {
-    if (btn.dataset.orn) {
+    if (btn.hasAttribute("data-slider")) {
+      p.slider = true; setSlider(x);
+    } else if (btn.dataset.orn) {
       curType = btn.dataset.orn; refreshPanels(); selected = null;
-      held = { item: { type: curType, color: curColor }, isNew: true };
+      p.held = { item: { type: curType, color: curColor }, isNew: true };
     } else if (btn.dataset.color) {
       curColor = btn.dataset.color;
       if (selected) selected.color = curColor;
@@ -344,56 +385,88 @@ function pointerDown(x, y) {
     if (Math.hypot(o.x * W - cx, o.y * H - cy) < r) {
       orns.splice(i, 1);
       selected = o;
-      held = { item: o, isNew: false };
+      p.held = { item: o, isNew: false };
       return;
     }
   }
   selected = null;
 }
 
-function pointerMove(x, y) { pointer.x = x; pointer.y = y; }
+function pointerMove(p, x, y) {
+  p.x = x; p.y = y;
+  if (p.slider) setSlider(x);
+}
 
-function pointerUp(x, y) {
-  if (x !== undefined) { pointer.x = x; pointer.y = y; }
-  if (!held) return;
+function pointerUp(p, x, y) {
+  if (x !== undefined) { p.x = x; p.y = y; }
+  p.slider = false;
+  if (!p.held) return;
   const rect = canvas.getBoundingClientRect();
-  const cx = pointer.x - rect.left, cy = pointer.y - rect.top;
+  const cx = p.x - rect.left, cy = p.y - rect.top;
   if (insideTree(cx, cy)) {
-    const item = { type: held.item.type, color: held.item.color, x: cx / W, y: cy / H };
+    const item = { type: p.held.item.type, color: p.held.item.color, x: cx / W, y: cy / H };
     orns.push(item); selected = item;
-  } else if (!held.isNew) {
+  } else if (!p.held.isNew) {
     selected = null; // se quita
   }
-  held = null;
+  p.held = null;
 }
 
 function runAction(a) {
   if (a === "camera") startCamera();
-  else if (a === "clear") { orns = []; selected = null; held = null; }
-  else if (a === "save") {
-    const prev = held; held = null; draw();
-    canvas.toBlob(b => {
-      const url = URL.createObjectURL(b);
-      const l = document.createElement("a"); l.href = url; l.download = "mi-arbol-de-navidad.png"; l.click();
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
-    });
-    held = prev;
-  }
+  else if (a === "clear") {
+    orns = []; selected = null;
+    for (const p of pointers.values()) p.held = null;
+  } else if (a === "save") saveImage();
 }
 
-window.addEventListener("pointerdown", e => { pointerDown(e.clientX, e.clientY); });
-window.addEventListener("pointermove", e => { pointerMove(e.clientX, e.clientY); });
-window.addEventListener("pointerup", e => { pointerUp(e.clientX, e.clientY); });
-window.addEventListener("pointercancel", () => pointerUp());
+function saveImage() {
+  const iw = window.innerWidth, ih = window.innerHeight;
+  const off = document.createElement("canvas");
+  off.width = iw; off.height = ih;
+  const o = off.getContext("2d");
+  const bg = o.createLinearGradient(0, 0, 0, ih);
+  bg.addColorStop(0, "#07102a"); bg.addColorStop(1, "#1a2b5c");
+  o.fillStyle = bg; o.fillRect(0, 0, iw, ih);
+  if (camVisible && videoEl.videoWidth) {
+    const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
+    const sc = Math.max(iw / vw, ih / vh), dw = vw * sc, dh = vh * sc;
+    o.save();
+    o.globalAlpha = camAlpha;
+    o.translate(iw, 0); o.scale(-1, 1);
+    o.drawImage(videoEl, (iw - dw) / 2, (ih - dh) / 2, dw, dh);
+    o.restore();
+  }
+  const rect = canvas.getBoundingClientRect();
+  o.drawImage(canvas, rect.left, rect.top, rect.width, rect.height);
+  off.toBlob(b => {
+    const url = URL.createObjectURL(b);
+    const l = document.createElement("a"); l.href = url; l.download = "mi-arbolito-magico.png"; l.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  });
+}
+
+window.addEventListener("pointerdown", e => {
+  const id = e.pointerType === "mouse" ? "mouse" : "t" + e.pointerId;
+  pointerDown(getPointer(id), e.clientX, e.clientY);
+});
+window.addEventListener("pointermove", e => {
+  const id = e.pointerType === "mouse" ? "mouse" : "t" + e.pointerId;
+  pointerMove(getPointer(id), e.clientX, e.clientY);
+});
+function endPointer(e) {
+  const id = e.pointerType === "mouse" ? "mouse" : "t" + e.pointerId;
+  const p = pointers.get(id);
+  if (!p) return;
+  pointerUp(p, e.clientX, e.clientY);
+  if (id !== "mouse") pointers.delete(id);
+}
+window.addEventListener("pointerup", endPointer);
+window.addEventListener("pointercancel", endPointer);
 
 /* ---------- Cámara y manos ---------- */
-const video = document.getElementById("video");
-const camBox = document.getElementById("cam");
-const overlay = document.getElementById("camOverlay");
-const octx = overlay.getContext("2d");
-const cursorEl = document.getElementById("cursor");
 let landmarker = null, camOn = false, lastVideoTime = -1;
-let cur = { x: 0, y: 0 }, pinched = false, lastSeen = 0, hoverEl = null;
+let hovered = new Set();
 
 async function startCamera() {
   if (camOn) return;
@@ -402,28 +475,30 @@ async function startCamera() {
     btn.textContent = "Cargando…";
     setStatus("Pidiendo acceso a la cámara…");
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: false,
+      video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false,
     });
-    video.srcObject = stream;
-    await video.play();
-    camBox.style.display = "block";
-    overlay.width = video.videoWidth || 640; overlay.height = video.videoHeight || 480;
+    videoEl.srcObject = stream;
+    await videoEl.play();
+    videoEl.style.display = "block";
+    camVisible = true;
+    document.getElementById("camTools").style.display = "flex";
+    applyOpacity();
 
     setStatus("Cargando el detector de manos (la primera vez tarda unos segundos)…");
     const fileset = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
     const modelAssetPath = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
     try {
       landmarker = await HandLandmarker.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath, delegate: "GPU" }, runningMode: "VIDEO", numHands: 1,
+        baseOptions: { modelAssetPath, delegate: "GPU" }, runningMode: "VIDEO", numHands: 2,
       });
     } catch (e) {
       landmarker = await HandLandmarker.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath, delegate: "CPU" }, runningMode: "VIDEO", numHands: 1,
+        baseOptions: { modelAssetPath, delegate: "CPU" }, runningMode: "VIDEO", numHands: 2,
       });
     }
     camOn = true;
     btn.style.display = "none";
-    setStatus("Listo. Muestra una mano a la cámara y pellizca con pulgar e índice para “agarrar”.");
+    setStatus("Listo. Muestra una o las dos manos y pellizca con pulgar e índice para “agarrar”.");
   } catch (err) {
     console.error(err);
     btn.textContent = "Activar cámara";
@@ -431,72 +506,89 @@ async function startCamera() {
   }
 }
 
-function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
-function handleHand(lm, now) {
+// Convierte un punto normalizado del vídeo a coordenadas de pantalla,
+// respetando el recorte "cover" y el espejo, para que el cursor quede sobre tu mano real.
+function videoToScreen(nx, ny) {
+  const vw = videoEl.videoWidth || 640, vh = videoEl.videoHeight || 480;
+  const iw = window.innerWidth, ih = window.innerHeight;
+  const sc = Math.max(iw / vw, ih / vh), dw = vw * sc, dh = vh * sc;
+  const dx = (iw - dw) / 2, dy = (ih - dh) / 2;
+  return { x: clamp((1 - nx) * dw + dx, 0, iw), y: clamp(ny * dh + dy, 0, ih) };
+}
+
+function updateHand(p, lm, now) {
+  p.isHand = true;
+  if (!p.cursor) {
+    p.cursor = document.createElement("div");
+    p.cursor.className = "cursor" + (p.id.endsWith("Left") ? "" : " b");
+    document.body.append(p.cursor);
+  }
   const thumb = lm[4], index = lm[8];
   // Punto de control: punto medio entre pulgar e índice (estable al pellizcar)
-  const nx = (thumb.x + index.x) / 2, ny = (thumb.y + index.y) / 2;
-  // Espejo en X y se amplía el rango útil para llegar a los bordes
-  const mx = Math.min(1, Math.max(0, ((1 - nx) - 0.1) / 0.8));
-  const my = Math.min(1, Math.max(0, (ny - 0.1) / 0.8));
-  const tx = mx * window.innerWidth, ty = my * window.innerHeight;
-  if (lastSeen === 0 || now - lastSeen > 600) { cur.x = tx; cur.y = ty; }
-  cur.x += (tx - cur.x) * 0.4; cur.y += (ty - cur.y) * 0.4;
-  lastSeen = now;
+  const t = videoToScreen((thumb.x + index.x) / 2, (thumb.y + index.y) / 2);
+  if (!p.seen || now - p.seen > 600) { p.cur.x = t.x; p.cur.y = t.y; }
+  p.cur.x += (t.x - p.cur.x) * 0.4;
+  p.cur.y += (t.y - p.cur.y) * 0.4;
+  p.seen = now;
 
   // Pellizco con histéresis, relativo al tamaño de la mano
   const scale = dist(lm[0], lm[9]) || 0.1;
   const ratio = dist(thumb, index) / scale;
-  const wasPinched = pinched;
-  if (!pinched && ratio < 0.30) pinched = true;
-  else if (pinched && ratio > 0.50) pinched = false;
+  const was = p.pinched;
+  if (!p.pinched && ratio < 0.30) p.pinched = true;
+  else if (p.pinched && ratio > 0.50) p.pinched = false;
 
-  cursorEl.style.display = "block";
-  cursorEl.style.transform = `translate(${cur.x}px, ${cur.y}px)`;
-  cursorEl.classList.toggle("pinch", pinched);
-  pointerMove(cur.x, cur.y);
-  if (pinched && !wasPinched) pointerDown(cur.x, cur.y);
-  if (!pinched && wasPinched) pointerUp(cur.x, cur.y);
+  p.cursor.style.display = "block";
+  p.cursor.style.transform = `translate(${p.cur.x}px, ${p.cur.y}px) scale(${p.pinched ? 0.7 : 1})`;
+  p.cursor.classList.toggle("pinch", p.pinched);
+  pointerMove(p, p.cur.x, p.cur.y);
+  if (p.pinched && !was) pointerDown(p, p.cur.x, p.cur.y);
+  if (!p.pinched && was) pointerUp(p, p.cur.x, p.cur.y);
 }
 
-function handLost(now) {
-  if (lastSeen && now - lastSeen > 400) {
-    if (pinched) { pinched = false; pointerUp(); }
-    cursorEl.style.display = "none";
-    lastSeen = 0;
+function handLost(p, now) {
+  if (p.seen && now - p.seen > 400) {
+    if (p.pinched) { p.pinched = false; pointerUp(p); }
+    p.cursor.style.display = "none";
+    p.seen = 0;
   }
 }
 
-function drawLandmarks(lm) {
-  octx.clearRect(0, 0, overlay.width, overlay.height);
-  if (!lm) return;
-  octx.fillStyle = pinched ? "#ffd54f" : "#7CFC00";
-  for (const p of lm) {
-    octx.beginPath();
-    octx.arc((1 - p.x) * overlay.width, p.y * overlay.height, 4, 0, Math.PI * 2);
-    octx.fill();
+function handleResults(res, now) {
+  const lms = res.landmarks || [];
+  const hd = res.handedness || res.handednesses || [];
+  const used = new Set();
+  lms.forEach((lm, i) => {
+    let label = hd[i] && hd[i][0] ? hd[i][0].categoryName : "H" + i;
+    if (used.has(label)) label += i;
+    used.add(label);
+    updateHand(getPointer("hand-" + label), lm, now);
+  });
+  for (const p of pointers.values()) {
+    if (p.isHand && !used.has(p.id.slice(5))) handLost(p, now);
   }
 }
 
 function updateHover() {
-  const show = cursorEl.style.display === "block";
-  const el = show ? elAt(cur.x, cur.y) : null;
-  if (el !== hoverEl) {
-    if (hoverEl) hoverEl.classList.remove("hover");
-    if (el) el.classList.add("hover");
-    hoverEl = el;
+  const now = new Set();
+  for (const p of pointers.values()) {
+    if (p.isHand && p.cursor && p.cursor.style.display === "block") {
+      const el = elAt(p.cur.x, p.cur.y);
+      if (el) now.add(el);
+    }
   }
+  for (const el of hovered) if (!now.has(el)) el.classList.remove("hover");
+  for (const el of now) if (!hovered.has(el)) el.classList.add("hover");
+  hovered = now;
 }
 
 function loop() {
   const now = performance.now();
-  if (camOn && landmarker && video.readyState >= 2 && video.currentTime !== lastVideoTime) {
-    lastVideoTime = video.currentTime;
-    const res = landmarker.detectForVideo(video, now);
-    const lm = res.landmarks && res.landmarks[0];
-    drawLandmarks(lm);
-    if (lm) handleHand(lm, now); else handLost(now);
+  if (camOn && landmarker && videoEl.readyState >= 2 && videoEl.currentTime !== lastVideoTime) {
+    lastVideoTime = videoEl.currentTime;
+    handleResults(landmarker.detectForVideo(videoEl, now), now);
   }
   updateHover();
   draw();
