@@ -112,6 +112,8 @@
     <button class="btn primary" id="camBtn" data-action="camera">Activar cámara</button>
     <button class="btn" data-action="clear">Limpiar</button>
     <button class="btn" data-action="save">Guardar imagen</button>
+    <button class="btn" data-action="fullscreen">Pantalla completa</button>
+    <button class="btn" data-action="tv">📺 Ver en la TV</button>
   </div>
 
   <div id="orn" class="panel"></div>
@@ -422,6 +424,22 @@ function runAction(a) {
     orns = []; selected = null;
     for (const p of pointers.values()) p.held = null;
   } else if (a === "save") saveImage();
+  else if (a === "fullscreen") toggleFullscreen();
+  else if (a === "tv") {
+    setStatus("Para verlo en la TV, usa Chrome: menú ⋮ → “Guardar, compartir y enviar” → “Enviar…”, elige tu Chromecast y en “Fuentes” selecciona “Enviar pestaña”. Luego activa la pantalla completa.");
+  }
+}
+
+function toggleFullscreen() {
+  // El navegador solo permite pantalla completa tras un clic o toque real (no con un pellizco)
+  try {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(() => {
+      setStatus("Para la pantalla completa pulsa el botón con el ratón o con el dedo (no se puede con un gesto de mano), o usa F11.");
+    });
+  } catch (e) {
+    setStatus("Tu navegador no permite la pantalla completa desde aquí. Prueba con F11.");
+  }
 }
 
 function saveImage() {
