@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Decora el árbol con tus manos</title>
+<style>
+  :root {
+    --bg: #0b1530;
+    --panel: #14214a;
+    --panel-2: #1c2d63;
+    --accent: #ffd54f;
+    --text: #f3f6ff;
+    --muted: #9fb0e0;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  #app {
+    height: 100dvh; display: grid; gap: 10px; padding: 10px;
+    grid-template-columns: 130px 1fr 130px;
+    grid-template-rows: auto 1fr;
+    grid-template-areas: "bar bar bar" "orn tree col";
+  }
+  #bar {
+    grid-area: bar; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: var(--panel); border-radius: 14px; padding: 8px 12px;
+  }
+  #bar h1 { font-size: 18px; margin: 0; white-space: nowrap; }
+  #status { color: var(--muted); font-size: 13px; flex: 1; min-width: 160px; }
+  .btn {
+    background: var(--panel-2); color: var(--text); border: 2px solid transparent;
+    border-radius: 12px; padding: 10px 14px; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .btn.primary { background: #2e7d32; }
+  .btn.hover, .btn:hover { border-color: var(--accent); }
+  .panel {
+    background: var(--panel); border-radius: 14px; padding: 8px;
+    display: flex; flex-direction: column; gap: 8px; overflow: auto;
+  }
+  #orn { grid-area: orn; }
+  #col { grid-area: col; flex-direction: row; flex-wrap: wrap; justify-content: center; align-content: flex-start; }
+  .orn-btn {
+    background: var(--panel-2); border: 3px solid transparent; border-radius: 12px;
+    padding: 6px 4px; color: var(--text); display: flex; flex-direction: column; align-items: center; gap: 2px;
+    font-size: 12px; cursor: pointer;
+  }
+  .orn-btn canvas { width: 56px; height: 56px; pointer-events: none; }
+  .orn-btn.sel { border-color: var(--accent); background: #26397a; }
+  .orn-btn.hover { border-color: #fff; }
+  .col-btn {
+    width: 48px; height: 48px; border-radius: 50%; border: 4px solid rgba(255,255,255,.25); cursor: pointer;
+  }
+  .col-btn.sel { border-color: #fff; box-shadow: 0 0 0 3px var(--accent); }
+  .col-btn.hover { border-color: #fff; transform: scale(1.1); }
+  #treeWrap { grid-area: tree; position: relative; border-radius: 14px; overflow: hidden; background: #000; }
+  #tree { width: 100%; height: 100%; display: block; }
+  #cam {
+    position: absolute; right: 10px; bottom: 10px; width: 160px; border-radius: 10px;
+    overflow: hidden; border: 2px solid rgba(255,255,255,.3); display: none; background: #000; pointer-events: none;
+  }
+  #cam video { width: 100%; display: block; transform: scaleX(-1); opacity: .85; }
+  #cam canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #hint {
+    position: absolute; left: 10px; bottom: 10px; max-width: 55%; font-size: 12px; color: #dfe7ff;
+    background: rgba(8,14,36,.65); padding: 6px 10px; border-radius: 10px; pointer-events: none;
+  }
+  #cursor {
+    position: fixed; left: 0; top: 0; width: 34px; height: 34px; margin: -17px 0 0 -17px;
+    border: 3px solid #fff; border-radius: 50%; pointer-events: none; display: none; z-index: 10;
+    box-shadow: 0 0 0 2px rgba(0,0,0,.4), 0 0 12px rgba(255,255,255,.6);
+    transition: background .08s, transform .08s;
+  }
+  #cursor.pinch { background: rgba(255,213,79,.85); transform: scale(.7); border-color: var(--accent); }
+  @media (max-width: 760px) {
+    #app {
+      grid-template-columns: 1fr; grid-template-rows: auto auto 1fr auto;
+      grid-template-areas: "bar" "orn" "tree" "col";
+    }
+    #orn { flex-direction: row; justify-content: center; }
+    .orn-btn canvas { width: 40px; height: 40px; }
+    .col-btn { width: 38px; height: 38px; }
+    #hint { display: none; }
+    #cam { width: 110px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="bar">
+    <h1>🎄 Decora el árbol</h1>
+    <div id="status">Toca “Activar cámara” para usar las manos, o usa el ratón / el dedo.</div>
+    <button class="btn primary" id="camBtn" data-action="camera">Activar cámara</button>
+    <button class="btn" data-action="clear">Limpiar</button>
+    <button class="btn" data-action="save">Guardar imagen</button>
+  </div>
+
+  <div id="orn" class="panel"></div>
+
+  <div id="treeWrap">
+    <canvas id="tree"></canvas>
+    <div id="hint">Pellizca (pulgar + índice) un adorno, llévalo al árbol y abre los dedos para soltarlo. Pellizca un color para pintarlo. Suelta un adorno fuera del árbol para quitarlo.</div>
+    <div id="cam"><video id="video" playsinline muted></video><canvas id="camOverlay"></canvas></div>
+  </div>
+
+  <div id="col" class="panel"></div>
+</div>
+<div id="cursor"></div>
+
+<script type="module">
+import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+
+/* ---------- Datos ---------- */
+const ORNAMENTS = [
+  { id: "star",  name: "Estrella" },
+  { id: "ball",  name: "Bola" },
+  { id: "heart", name: "Corazón" },
+  { id: "bell",  name: "Campana" },
+  { id: "gift",  name: "Regalo" },
+];
+const COLORS = ["#e53935", "#fb8c00", "#fdd835", "#43a047", "#1e88e5", "#8e24aa", "#ec407a", "#f5f5f5"];
+
+let curType = "star";
+let curColor = COLORS[0];
+let orns = [];          // { type, color, x, y }  (x, y normalizados 0..1 sobre el lienzo)
+let selected = null;    // adorno colocado seleccionado
+let held = null;        // { item, isNew } mientras se arrastra
+
+/* ---------- Utilidades ---------- */
+function shade(hex, f) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, Math.round(((n >> 16) & 255) * f));
+  const g = Math.min(255, Math.round(((n >> 8) & 255) * f));
+  const b = Math.min(255, Math.round((n & 255) * f));
+  return `rgb(${r},${g},${b})`;
+}
+
+/* ---------- Dibujo de adornos ---------- */
+function drawOrnament(ctx, type, x, y, r, color) {
+  ctx.save();
+  ctx.lineWidth = Math.max(1.5, r * 0.08);
+  ctx.strokeStyle = shade(color, 0.6);
+  ctx.fillStyle = color;
+  ctx.lineJoin = "round";
+  if (type === "star") {
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const ang = -Math.PI / 2 + i * Math.PI / 5;
+      const rad = i % 2 === 0 ? r * 1.15 : r * 0.5;
+      const px = x + Math.cos(ang) * rad, py = y + Math.sin(ang) * rad;
+      i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else if (type === "ball") {
+    const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.1, x, y, r);
+    g.addColorStop(0, "#ffffff"); g.addColorStop(0.25, color); g.addColorStop(1, shade(color, 0.6));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y + r * 0.1, r * 0.9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#d4af37";
+    ctx.fillRect(x - r * 0.25, y - r * 0.95, r * 0.5, r * 0.3);
+  } else if (type === "heart") {
+    ctx.beginPath();
+    ctx.moveTo(x, y + r * 0.9);
+    ctx.bezierCurveTo(x + r * 1.3, y + r * 0.1, x + r * 0.7, y - r * 0.9, x, y - r * 0.3);
+    ctx.bezierCurveTo(x - r * 0.7, y - r * 0.9, x - r * 1.3, y + r * 0.1, x, y + r * 0.9);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else if (type === "bell") {
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.95, y + r * 0.7);
+    ctx.bezierCurveTo(x - r * 0.9, y - r * 0.2, x - r * 0.6, y - r * 0.95, x, y - r * 0.95);
+    ctx.bezierCurveTo(x + r * 0.6, y - r * 0.95, x + r * 0.9, y - r * 0.2, x + r * 0.95, y + r * 0.7);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#d4af37";
+    ctx.beginPath(); ctx.arc(x, y + r * 0.8, r * 0.25, 0, Math.PI * 2); ctx.fill();
+  } else if (type === "gift") {
+    const w = r * 1.7, h = r * 1.4, x0 = x - w / 2, y0 = y - h / 2 + r * 0.1;
+    ctx.fillRect(x0, y0, w, h); ctx.strokeRect(x0, y0, w, h);
+    ctx.fillStyle = "#fff8e1";
+    ctx.fillRect(x - r * 0.15, y0, r * 0.3, h);
+    ctx.fillRect(x0, y0 + h / 2 - r * 0.15, w, r * 0.3);
+    ctx.beginPath(); ctx.arc(x - r * 0.25, y0 - r * 0.1, r * 0.25, 0, Math.PI * 2);
+    ctx.arc(x + r * 0.25, y0 - r * 0.1, r * 0.25, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* ---------- Paneles ---------- */
+const ornPanel = document.getElementById("orn");
+const colPanel = document.getElementById("col");
+const iconCanvases = {};
+
+ORNAMENTS.forEach(o => {
+  const b = document.createElement("div");
+  b.className = "orn-btn"; b.dataset.orn = o.id;
+  const c = document.createElement("canvas"); c.width = 112; c.height = 112;
+  const s = document.createElement("span"); s.textContent = o.name;
+  b.append(c, s); ornPanel.append(b);
+  iconCanvases[o.id] = c;
+});
+COLORS.forEach(col => {
+  const b = document.createElement("div");
+  b.className = "col-btn"; b.dataset.color = col; b.style.background = col;
+  colPanel.append(b);
+});
+
+function refreshPanels() {
+  for (const o of ORNAMENTS) {
+    const c = iconCanvases[o.id], ctx = c.getContext("2d");
+    ctx.clearRect(0, 0, c.width, c.height);
+    drawOrnament(ctx, o.id, 56, 58, 34, curColor);
+  }
+  document.querySelectorAll(".orn-btn").forEach(b => b.classList.toggle("sel", b.dataset.orn === curType));
+  document.querySelectorAll(".col-btn").forEach(b => b.classList.toggle("sel", b.dataset.color === curColor));
+}
+refreshPanels();
+
+/* ---------- Lienzo del árbol ---------- */
+const canvas = document.getElementById("tree");
+const ctx = canvas.getContext("2d");
+let W = 0, H = 0;
+const snow = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), r: Math.random() * 1.8 + 0.5 }));
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  const r = canvas.getBoundingClientRect();
+  W = r.width; H = r.height;
+  canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+new ResizeObserver(resize).observe(canvas);
+window.addEventListener("resize", resize);
+resize();
+
+function geom() {
+  const cx = W / 2;
+  const apexY = H * 0.12, baseY = H * 0.80;
+  const halfW = Math.min(W * 0.42, (baseY - apexY) * 0.52);
+  return { cx, apexY, baseY, halfW };
+}
+const ornR = () => Math.max(20, Math.min(W, H) * 0.05);
+
+function insideTree(x, y) {
+  const g = geom();
+  const top = g.apexY - ornR() * 1.2, bottom = g.baseY + ornR() * 0.5;
+  if (y < top || y > bottom) return false;
+  const t = Math.max(0, (y - g.apexY) / (g.baseY - g.apexY));
+  const half = g.halfW * t * 1.04 + ornR() * 0.8;
+  return Math.abs(x - g.cx) <= half;
+}
+
+function drawScene() {
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#07102a"); bg.addColorStop(1, "#1a2b5c");
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "rgba(255,255,255,.8)";
+  for (const s of snow) { ctx.beginPath(); ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2); ctx.fill(); }
+
+  // suelo nevado
+  ctx.fillStyle = "#e8f0ff";
+  ctx.beginPath(); ctx.ellipse(W / 2, H * 0.90, W * 0.6, H * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+
+  const g = geom();
+  // tronco
+  ctx.fillStyle = "#6d4c41";
+  ctx.fillRect(g.cx - g.halfW * 0.12, g.baseY - 4, g.halfW * 0.24, H * 0.09);
+
+  // tres niveles
+  const tiers = [[0, 0.46, 0.50], [0.26, 0.76, 0.78], [0.5, 1, 1]];
+  const greens = ["#2e7d32", "#388e3c", "#43a047"];
+  const span = g.baseY - g.apexY;
+  tiers.forEach(([t0, t1, wf], i) => {
+    const yTop = g.apexY + span * t0, yBot = g.apexY + span * t1;
+    const half = g.halfW * (i === 2 ? 1 : wf + 0.1) ;
+    ctx.fillStyle = greens[i];
+    ctx.strokeStyle = "#1b5e20"; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(g.cx, yTop);
+    ctx.lineTo(g.cx + half, yBot);
+    ctx.lineTo(g.cx - half, yBot);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  });
+}
+
+function draw() {
+  drawScene();
+  const r = ornR();
+  for (const o of orns) {
+    const px = o.x * W, py = o.y * H;
+    if (o === selected) {
+      ctx.save(); ctx.strokeStyle = "#ffd54f"; ctx.lineWidth = 3; ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.arc(px, py, r * 1.5, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
+    drawOrnament(ctx, o.type, px, py, r, o.color);
+  }
+  if (held) {
+    const rect = canvas.getBoundingClientRect();
+    const px = pointer.x - rect.left, py = pointer.y - rect.top;
+    ctx.save();
+    ctx.globalAlpha = 0.95; ctx.shadowColor = "rgba(0,0,0,.6)"; ctx.shadowBlur = 14;
+    drawOrnament(ctx, held.item.type, px, py, r * 1.25, held.item.color);
+    ctx.restore();
+    if (!insideTree(px, py)) {
+      ctx.fillStyle = "rgba(255,255,255,.85)"; ctx.font = "13px system-ui"; ctx.textAlign = "center";
+      ctx.fillText(held.isNew ? "Llévalo al árbol" : "Suelta aquí para quitarlo", px, py - r * 1.8);
+    }
+  }
+}
+
+/* ---------- Lógica de puntero (ratón, táctil y mano) ---------- */
+const pointer = { x: -100, y: -100 };
+const statusEl = document.getElementById("status");
+const setStatus = t => { statusEl.textContent = t; };
+
+function elAt(x, y) {
+  const el = document.elementFromPoint(x, y);
+  return el ? el.closest("[data-orn],[data-color],[data-action]") : null;
+}
+
+function pointerDown(x, y) {
+  pointer.x = x; pointer.y = y;
+  const btn = elAt(x, y);
+  if (btn) {
+    if (btn.dataset.orn) {
+      curType = btn.dataset.orn; refreshPanels(); selected = null;
+      held = { item: { type: curType, color: curColor }, isNew: true };
+    } else if (btn.dataset.color) {
+      curColor = btn.dataset.color;
+      if (selected) selected.color = curColor;
+      refreshPanels();
+    } else if (btn.dataset.action) {
+      runAction(btn.dataset.action);
+    }
+    return;
+  }
+  const rect = canvas.getBoundingClientRect();
+  const cx = x - rect.left, cy = y - rect.top;
+  if (cx < 0 || cy < 0 || cx > W || cy > H) return;
+  const r = ornR() * 1.3;
+  for (let i = orns.length - 1; i >= 0; i--) {
+    const o = orns[i];
+    if (Math.hypot(o.x * W - cx, o.y * H - cy) < r) {
+      orns.splice(i, 1);
+      selected = o;
+      held = { item: o, isNew: false };
+      return;
+    }
+  }
+  selected = null;
+}
+
+function pointerMove(x, y) { pointer.x = x; pointer.y = y; }
+
+function pointerUp(x, y) {
+  if (x !== undefined) { pointer.x = x; pointer.y = y; }
+  if (!held) return;
+  const rect = canvas.getBoundingClientRect();
+  const cx = pointer.x - rect.left, cy = pointer.y - rect.top;
+  if (insideTree(cx, cy)) {
+    const item = { type: held.item.type, color: held.item.color, x: cx / W, y: cy / H };
+    orns.push(item); selected = item;
+  } else if (!held.isNew) {
+    selected = null; // se quita
+  }
+  held = null;
+}
+
+function runAction(a) {
+  if (a === "camera") startCamera();
+  else if (a === "clear") { orns = []; selected = null; held = null; }
+  else if (a === "save") {
+    const prev = held; held = null; draw();
+    canvas.toBlob(b => {
+      const url = URL.createObjectURL(b);
+      const l = document.createElement("a"); l.href = url; l.download = "mi-arbol-de-navidad.png"; l.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    });
+    held = prev;
+  }
+}
+
+window.addEventListener("pointerdown", e => { pointerDown(e.clientX, e.clientY); });
+window.addEventListener("pointermove", e => { pointerMove(e.clientX, e.clientY); });
+window.addEventListener("pointerup", e => { pointerUp(e.clientX, e.clientY); });
+window.addEventListener("pointercancel", () => pointerUp());
+
+/* ---------- Cámara y manos ---------- */
+const video = document.getElementById("video");
+const camBox = document.getElementById("cam");
+const overlay = document.getElementById("camOverlay");
+const octx = overlay.getContext("2d");
+const cursorEl = document.getElementById("cursor");
+let landmarker = null, camOn = false, lastVideoTime = -1;
+let cur = { x: 0, y: 0 }, pinched = false, lastSeen = 0, hoverEl = null;
+
+async function startCamera() {
+  if (camOn) return;
+  const btn = document.getElementById("camBtn");
+  try {
+    btn.textContent = "Cargando…";
+    setStatus("Pidiendo acceso a la cámara…");
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: false,
+    });
+    video.srcObject = stream;
+    await video.play();
+    camBox.style.display = "block";
+    overlay.width = video.videoWidth || 640; overlay.height = video.videoHeight || 480;
+
+    setStatus("Cargando el detector de manos (la primera vez tarda unos segundos)…");
+    const fileset = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+    const modelAssetPath = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
+    try {
+      landmarker = await HandLandmarker.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath, delegate: "GPU" }, runningMode: "VIDEO", numHands: 1,
+      });
+    } catch (e) {
+      landmarker = await HandLandmarker.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath, delegate: "CPU" }, runningMode: "VIDEO", numHands: 1,
+      });
+    }
+    camOn = true;
+    btn.style.display = "none";
+    setStatus("Listo. Muestra una mano a la cámara y pellizca con pulgar e índice para “agarrar”.");
+  } catch (err) {
+    console.error(err);
+    btn.textContent = "Activar cámara";
+    setStatus("No se pudo usar la cámara (" + (err.name || "error") + "). Puedes seguir con el ratón o el dedo.");
+  }
+}
+
+function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+function handleHand(lm, now) {
+  const thumb = lm[4], index = lm[8];
+  // Punto de control: punto medio entre pulgar e índice (estable al pellizcar)
+  const nx = (thumb.x + index.x) / 2, ny = (thumb.y + index.y) / 2;
+  // Espejo en X y se amplía el rango útil para llegar a los bordes
+  const mx = Math.min(1, Math.max(0, ((1 - nx) - 0.1) / 0.8));
+  const my = Math.min(1, Math.max(0, (ny - 0.1) / 0.8));
+  const tx = mx * window.innerWidth, ty = my * window.innerHeight;
+  if (lastSeen === 0 || now - lastSeen > 600) { cur.x = tx; cur.y = ty; }
+  cur.x += (tx - cur.x) * 0.4; cur.y += (ty - cur.y) * 0.4;
+  lastSeen = now;
+
+  // Pellizco con histéresis, relativo al tamaño de la mano
+  const scale = dist(lm[0], lm[9]) || 0.1;
+  const ratio = dist(thumb, index) / scale;
+  const wasPinched = pinched;
+  if (!pinched && ratio < 0.30) pinched = true;
+  else if (pinched && ratio > 0.50) pinched = false;
+
+  cursorEl.style.display = "block";
+  cursorEl.style.transform = `translate(${cur.x}px, ${cur.y}px)`;
+  cursorEl.classList.toggle("pinch", pinched);
+  pointerMove(cur.x, cur.y);
+  if (pinched && !wasPinched) pointerDown(cur.x, cur.y);
+  if (!pinched && wasPinched) pointerUp(cur.x, cur.y);
+}
+
+function handLost(now) {
+  if (lastSeen && now - lastSeen > 400) {
+    if (pinched) { pinched = false; pointerUp(); }
+    cursorEl.style.display = "none";
+    lastSeen = 0;
+  }
+}
+
+function drawLandmarks(lm) {
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  if (!lm) return;
+  octx.fillStyle = pinched ? "#ffd54f" : "#7CFC00";
+  for (const p of lm) {
+    octx.beginPath();
+    octx.arc((1 - p.x) * overlay.width, p.y * overlay.height, 4, 0, Math.PI * 2);
+    octx.fill();
+  }
+}
+
+function updateHover() {
+  const show = cursorEl.style.display === "block";
+  const el = show ? elAt(cur.x, cur.y) : null;
+  if (el !== hoverEl) {
+    if (hoverEl) hoverEl.classList.remove("hover");
+    if (el) el.classList.add("hover");
+    hoverEl = el;
+  }
+}
+
+function loop() {
+  const now = performance.now();
+  if (camOn && landmarker && video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+    lastVideoTime = video.currentTime;
+    const res = landmarker.detectForVideo(video, now);
+    const lm = res.landmarks && res.landmarks[0];
+    drawLandmarks(lm);
+    if (lm) handleHand(lm, now); else handLost(now);
+  }
+  updateHover();
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
